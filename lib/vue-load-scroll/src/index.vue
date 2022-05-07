@@ -50,8 +50,13 @@ export default {
         height: 0,
         msg: "",
       },
-      canPull: false,
+      canPullDown: false,
       withAnimation: false, // 下拉框高度恢复到0时候的缓冲动画
+      // 记录点击位置，及滑动距离
+      touchPosition: {
+        start: 0,
+        distance: 0,
+      },
     };
   },
   computed: {
@@ -130,9 +135,9 @@ export default {
       el.addEventListener("touchstart", (e) => {
         console.log('touchstart', el.scrollTop);
         if (el.scrollTop === 0) {
-          this.canPull = true;
+          this.canPullDown = true;
         } else {
-          this.canPull = false;
+          this.canPullDown = false;
         }
         touchPosition.start = e.touches.item(0).pageY;
       });
@@ -143,7 +148,7 @@ export default {
        * finally, update the status of pull down based on the distance
        */
       el.addEventListener("touchmove", (e) => {
-        if (!this.canPull) {
+        if (!this.canPullDown) {
           return;
         }
 
@@ -178,7 +183,7 @@ export default {
       // bind touchend event
       el.addEventListener("touchend", () => {
         console.log('touchend', el.scrollTop, this.pullDownHeight);
-        this.canPull = false;
+        this.canPullDown = false;
         el.style.overflowY = "auto";
         pullDownHeader.style.transition = ANIMATION;
         // reset icon rotate
@@ -236,22 +241,27 @@ export default {
       });
     });
   },
+  watch: {
+    enablePullDown(val) {
+      // 如果是动态的触发了下拉功能则手动初始化，此时由于在执行touchmove因此需要讲canPull改为true
+      if (val) {
+        this.canPullDown = true
+        this.initPullDown()
+      }
+    }
+  },
   methods: {
     // initPullDown() {
     //   if (!this.enablePullDown) return
-    //   const touchPosition = {
-    //     start: 0,
-    //     distance: 0,
-    //   };
     //   const el = this.$el
     //   // touchstart判断当前容器是否有滚动值，如果有滚动值则不触发touchmove
     //   el.addEventListener("touchstart", (e) => {
     //     if (el.scrollTop === 0) {
-    //       this.canPull = true;
+    //       this.canPullDown = true;
     //     } else {
-    //       this.canPull = false;
+    //       this.canPullDown = false;
     //     }
-    //     touchPosition.start = e.touches.item(0).pageY;
+    //     this.touchPosition.start = e.touches.item(0).pageY;
     //   });
 
     //   /**
@@ -260,20 +270,21 @@ export default {
     //    * 更新下拉状态
     //    */
     //   el.addEventListener("touchmove", (e) => {
-    //     // 这边需要再加个标志
-    //     if (!this.canPull) {
+    //     if (!this.canPullDown) {
     //       return;
     //     }
-
-    //     var distance = e.touches.item(0).pageY - touchPosition.start;
-    //     // limit the height of pull down to 180
-    //     distance = distance > 180 ? 180 : distance;
+    //     if (this.touchPosition.start === 0) {
+    //       this.touchPosition.start = e.touches.item(0).pageY
+    //     }
+    //     var distance = e.touches.item(0).pageY - this.touchPosition.start;
+    //     // 先限制最大下拉高度为100
+    //     distance = distance > 100 ? 100 : distance;
     //     // prevent native scroll
     //     if (distance > 0) {
     //       el.style.overflow = "hidden";
     //     }
-    //     // update touchPosition and the height of pull down
-    //     touchPosition.distance = distance;
+    //     // 更新distance和下拉框的高度
+    //     this.touchPosition.distance = distance;
     //     this.pullDown.height = distance;
     //     /**
     //      * if distance is bigger than the height of pull down
@@ -296,7 +307,7 @@ export default {
     //   // bind touchend event
     //   el.addEventListener("touchend", () => {
     //     console.log('touchend', el.scrollTop, this.pullDownHeight);
-    //     this.canPull = false;
+    //     this.canPullDown = false;
     //     el.style.overflowY = "auto";
     //     pullDownHeader.style.transition = ANIMATION;
     //     // reset icon rotate
