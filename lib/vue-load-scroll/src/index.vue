@@ -1,11 +1,12 @@
 <template>
-  <div class="scroll-container">
+  <div class="scroll-container" ref="container">
     <div
+      ref="pullDownHeader"
       class="pull-down-header"
-      v-bind:style="{ height: pullDown.height + 'px' }"
+      :style="{ height: pullDown.height + 'px', transition: withAnimation ? 'height .2s ease' : '' }"
     >
       <div class="pull-down-content" :style="pullDownContentStyle">
-        <i class="pull-down-content--icon" v-bind:class="iconClass"></i>
+        <i class="pull-down-content--icon" :class="iconClass"></i>
         <span class="pull-down-content--label">{{ label }}</span>
       </div>
     </div>
@@ -28,6 +29,10 @@ const ANIMATION = "height .2s ease";
 export default {
   name: "vue-load-scroll",
   props: {
+    enablePullDown: {
+      type: Boolean,
+      default: true
+    },
     onRefresh: {
       type: Function,
     },
@@ -46,6 +51,7 @@ export default {
         msg: "",
       },
       canPull: false,
+      withAnimation: false, // 下拉框高度恢复到0时候的缓冲动画
     };
   },
   computed: {
@@ -230,6 +236,124 @@ export default {
       });
     });
   },
+  methods: {
+    // initPullDown() {
+    //   if (!this.enablePullDown) return
+    //   const touchPosition = {
+    //     start: 0,
+    //     distance: 0,
+    //   };
+    //   const el = this.$el
+    //   // touchstart判断当前容器是否有滚动值，如果有滚动值则不触发touchmove
+    //   el.addEventListener("touchstart", (e) => {
+    //     if (el.scrollTop === 0) {
+    //       this.canPull = true;
+    //     } else {
+    //       this.canPull = false;
+    //     }
+    //     touchPosition.start = e.touches.item(0).pageY;
+    //   });
+
+    //   /**
+    //    * touchmove更新下拉框高度
+    //    * 更新图标动画样式
+    //    * 更新下拉状态
+    //    */
+    //   el.addEventListener("touchmove", (e) => {
+    //     // 这边需要再加个标志
+    //     if (!this.canPull) {
+    //       return;
+    //     }
+
+    //     var distance = e.touches.item(0).pageY - touchPosition.start;
+    //     // limit the height of pull down to 180
+    //     distance = distance > 180 ? 180 : distance;
+    //     // prevent native scroll
+    //     if (distance > 0) {
+    //       el.style.overflow = "hidden";
+    //     }
+    //     // update touchPosition and the height of pull down
+    //     touchPosition.distance = distance;
+    //     this.pullDown.height = distance;
+    //     /**
+    //      * if distance is bigger than the height of pull down
+    //      * set the status of pull down to STATUS_READY
+    //      */
+    //     if (distance > this.pullDownHeight) {
+    //       this.pullDown.status = STATUS_READY;
+    //       icon.style.transform = "rotate(180deg)";
+    //     } else {
+    //       /**
+    //        * else set the status of pull down to STATUS_START
+    //        * and rotate the icon based on distance
+    //        */
+    //       this.pullDown.status = STATUS_START;
+    //       icon.style.transform =
+    //         "rotate(" + (distance / this.pullDownHeight) * 180 + "deg)";
+    //     }
+    //   });
+
+    //   // bind touchend event
+    //   el.addEventListener("touchend", () => {
+    //     console.log('touchend', el.scrollTop, this.pullDownHeight);
+    //     this.canPull = false;
+    //     el.style.overflowY = "auto";
+    //     pullDownHeader.style.transition = ANIMATION;
+    //     // reset icon rotate
+    //     icon.style.transform = "";
+    //     // if distance is bigger than 60
+    //     if (touchPosition.distance - el.scrollTop > this.pullDownHeight) {
+    //       el.scrollTop = 0;
+    //       this.pullDown.height = this.pullDownHeight;
+    //       this.pullDown.status = STATUS_REFRESH;
+    //       // trigger refresh callback
+    //       if (this.onRefresh && typeof this.onRefresh === "function") {
+    //         var res = this.onRefresh();
+    //         // if onRefresh return promise
+    //         if (res && res.then && typeof res.then === "function") {
+    //           res.then(
+    //             () => {
+    //               // success show finish status
+    //               this.pullDown.status = STATUS_SUCCESS;
+    //               setTimeout(() => {
+    //                 resetPullDown(this.pullDown, true);
+    //               }, 1000);
+    //             },
+    //             (error) => {
+    //               // show error and hide the pull down after 1 second
+    //               if (typeof error !== "string") {
+    //                 error = false;
+    //               }
+    //               this.pullDown.msg = error || this.customLabels[0];
+    //               this.pullDown.status = STATUS_ERROR;
+    //               setTimeout(() => {
+    //                 resetPullDown(this.pullDown, true);
+    //               }, 1000);
+    //             }
+    //           );
+    //         } else {
+    //           resetPullDown(this.pullDown);
+    //         }
+    //       } else {
+    //         resetPullDown(this.pullDown);
+    //         console.warn("please use :on-refresh to pass onRefresh callback");
+    //       }
+    //     } else {
+    //       resetPullDown(this.pullDown);
+    //     }
+    //     // reset touchPosition
+    //     touchPosition.distance = 0;
+    //     touchPosition.start = 0;
+    //   });
+    //   // remove transition when transitionend
+    //   pullDownHeader.addEventListener("transitionend", () => {
+    //     pullDownHeader.style.transition = "";
+    //   });
+    //   pullDownHeader.addEventListener("webkitTransitionEnd", () => {
+    //     pullDownHeader.style.transition = "";
+    //   });
+    // }
+  }
 };
 </script>
 
