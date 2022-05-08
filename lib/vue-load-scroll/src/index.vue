@@ -184,14 +184,15 @@ export default {
       // touchend 松手后判断执行
       el.addEventListener("touchend", () => {
         this.canPullDown = false;
-        // 重置图标旋转
-        icon.style.transform = "";
         // 如果下拉距离大于下拉框高度下拉框高度确定，状态更新
         if (this.touchPosition.distance > this.pullDownHeight) {
           this.pullDown.height = this.pullDownHeight;
           this.pullDown.status = STATUS_REFRESH;
           // 如果有传promise函数则执行
-          if (this.onPulldownRefresh && typeof this.onPulldownRefresh === "function") {
+          if (
+            this.onPulldownRefresh &&
+            typeof this.onPulldownRefresh === "function"
+          ) {
             var res = this.onPulldownRefresh();
             console.log(res);
             // 判断是否是promise返回
@@ -220,7 +221,9 @@ export default {
             }
           } else {
             this.resetPullDown();
-            console.warn("please use :on-refresh to pass onPulldownRefresh callback");
+            console.warn(
+              "please use :on-refresh to pass onPulldownRefresh callback"
+            );
           }
         } else {
           this.resetPullDown();
@@ -235,6 +238,9 @@ export default {
       });
     },
     resetPullDown(withAnimation) {
+      // 重置图标旋转
+      const icon = this.$el.querySelector(".pull-down-content--icon");
+      icon.style.transform = "";
       this.withAnimation = !!withAnimation;
       this.pullDown.height = 0;
       this.pullDown.status = STATUS_START;
