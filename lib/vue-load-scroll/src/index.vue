@@ -3,7 +3,10 @@
     <div
       ref="pullDownHeader"
       class="pull-down-header"
-      :style="{ height: pullDown.height + 'px', transition: withAnimation ? 'height .2s ease' : '' }"
+      :style="{
+        height: pullDown.height + 'px',
+        transition: withAnimation ? 'height .2s ease' : '',
+      }"
     >
       <div class="pull-down-content" :style="pullDownContentStyle">
         <i class="pull-down-content--icon" :class="iconClass"></i>
@@ -23,17 +26,24 @@ const STATUS_REFRESH = 2;
 const STATUS_SUCCESS = 3;
 
 // labels of pull down
-const LABELS = ["数据异常", "下拉刷新数据", "松开刷新数据", "数据刷新中...", "刷新完成"];
-const ANIMATION = "height .2s ease";
+const LABELS = [
+  "数据异常",
+  "下拉刷新数据",
+  "松开刷新数据",
+  "数据刷新中...",
+  "刷新完成",
+];
 
 export default {
   name: "vue-load-scroll",
   props: {
+    // 是否开启下拉刷新
     enablePullDown: {
       type: Boolean,
-      default: true
+      default: true,
     },
-    onRefresh: {
+    // 下拉触发返回promise的函数
+    onPulldownRefresh: {
       type: Function,
     },
     config: {
@@ -110,69 +120,60 @@ export default {
   },
   mounted() {
     this.$nextTick(() => {
-      var el = this.$el;
-      var pullDownHeader = el.querySelector(".pull-down-header");
-      var icon = pullDownHeader.querySelector(".pull-down-content--icon");
-      /**
-       * reset the status of pull down
-       * @param {Object} pullDown the pull down
-       * @param {Boolean} withAnimation whether add animation when pull up
-       */
-      let resetPullDown = (pullDown, withAnimation) => {
-        if (withAnimation) {
-          pullDownHeader.style.transition = ANIMATION;
-        }
-        pullDown.height = 0;
-        pullDown.status = STATUS_START;
-      };
-      // store of touch position, include start position and distance
-      var touchPosition = {
-        start: 0,
-        distance: 0,
-      };
-
-      // bind touchstart event to store start position of touch
+      this.initPullDown();
+    });
+  },
+  watch: {
+    enablePullDown(val) {
+      // 如果是动态的触发了下拉功能则手动初始化下拉
+      if (val) {
+        this.$nextTick(() => {
+          this.initPullDown();
+        });
+      }
+    },
+  },
+  methods: {
+    initPullDown() {
+      if (!this.enablePullDown) return;
+      const el = this.$el;
+      const pullDownHeader = this.$refs.pullDownHeader;
+      const icon = el.querySelector(".pull-down-content--icon");
+      // touchstart判断当前容器是否有滚动值，如果有滚动值则不触发touchmove
       el.addEventListener("touchstart", (e) => {
-        console.log('touchstart', el.scrollTop);
-        if (el.scrollTop === 0) {
-          this.canPullDown = true;
-        } else {
-          this.canPullDown = false;
-        }
-        touchPosition.start = e.touches.item(0).pageY;
+        this.canPullDown = el.scrollTop === 0;
+        this.touchPosition.start = e.touches.item(0).pageY;
       });
 
       /**
-       * bind touchmove event, do the following:
-       * first, update the height of pull down
-       * finally, update the status of pull down based on the distance
+       * touchmove更新下拉框高度
+       * 更新图标动画样式
+       * 更新下拉状态
        */
       el.addEventListener("touchmove", (e) => {
-        if (!this.canPullDown) {
-          return;
+        // 这里是为了处理touchmove过程中突然放开了下拉功能
+        if (this.touchPosition.start === 0) {
+          this.canPullDown = el.scrollTop === 0;
+          this.touchPosition.start = e.touches.item(0).pageY;
         }
-
-        var distance = e.touches.item(0).pageY - touchPosition.start;
-        // limit the height of pull down to 180
-        distance = distance > 180 ? 180 : distance;
-        // prevent native scroll
-        if (distance > 0) {
-          el.style.overflow = "hidden";
-        }
-        // update touchPosition and the height of pull down
-        touchPosition.distance = distance;
+        if (!this.canPullDown) return;
+        var distance = e.touches.item(0).pageY - this.touchPosition.start;
+        // 先限制最大下拉高度为100
+        distance = distance > 100 ? 100 : distance;
+        // 更新distance和下拉框的高度
+        this.touchPosition.distance = distance;
         this.pullDown.height = distance;
         /**
-         * if distance is bigger than the height of pull down
-         * set the status of pull down to STATUS_READY
+         * 如果下拉高度大于设定的下拉框高度那么更改下拉状态为STATUS_READY
+         * 下拉图表旋转180deg
          */
         if (distance > this.pullDownHeight) {
           this.pullDown.status = STATUS_READY;
           icon.style.transform = "rotate(180deg)";
         } else {
           /**
-           * else set the status of pull down to STATUS_START
-           * and rotate the icon based on distance
+           * 如果还没到下拉框高度就是STATUS_START状态
+           * 按比例旋转图标
            */
           this.pullDown.status = STATUS_START;
           icon.style.transform =
@@ -180,191 +181,68 @@ export default {
         }
       });
 
-      // bind touchend event
+      // touchend 松手后判断执行
       el.addEventListener("touchend", () => {
-        console.log('touchend', el.scrollTop, this.pullDownHeight);
         this.canPullDown = false;
-        el.style.overflowY = "auto";
-        pullDownHeader.style.transition = ANIMATION;
-        // reset icon rotate
+        // 重置图标旋转
         icon.style.transform = "";
-        // if distance is bigger than 60
-        if (touchPosition.distance - el.scrollTop > this.pullDownHeight) {
-          el.scrollTop = 0;
+        // 如果下拉距离大于下拉框高度下拉框高度确定，状态更新
+        if (this.touchPosition.distance > this.pullDownHeight) {
           this.pullDown.height = this.pullDownHeight;
           this.pullDown.status = STATUS_REFRESH;
-          // trigger refresh callback
-          if (this.onRefresh && typeof this.onRefresh === "function") {
-            var res = this.onRefresh();
-            // if onRefresh return promise
+          // 如果有传promise函数则执行
+          if (this.onPulldownRefresh && typeof this.onPulldownRefresh === "function") {
+            var res = this.onPulldownRefresh();
+            console.log(res);
+            // 判断是否是promise返回
             if (res && res.then && typeof res.then === "function") {
               res.then(
                 () => {
-                  // success show finish status
+                  // 如果成功更新状态为STATUS_SUCCESS
                   this.pullDown.status = STATUS_SUCCESS;
+                  // 延时1s后回复初始状态
                   setTimeout(() => {
-                    resetPullDown(this.pullDown, true);
+                    this.resetPullDown(true);
                   }, 1000);
                 },
-                (error) => {
-                  // show error and hide the pull down after 1 second
-                  if (typeof error !== "string") {
-                    error = false;
-                  }
-                  this.pullDown.msg = error || this.customLabels[0];
+                () => {
+                  // 如果失败更新状态为STATUS_ERROR
+                  this.pullDown.msg = this.customLabels[0];
                   this.pullDown.status = STATUS_ERROR;
+                  // 延时1s后回复初始状态
                   setTimeout(() => {
-                    resetPullDown(this.pullDown, true);
+                    this.resetPullDown(true);
                   }, 1000);
                 }
               );
             } else {
-              resetPullDown(this.pullDown);
+              this.resetPullDown();
             }
           } else {
-            resetPullDown(this.pullDown);
-            console.warn("please use :on-refresh to pass onRefresh callback");
+            this.resetPullDown();
+            console.warn("please use :on-refresh to pass onPulldownRefresh callback");
           }
         } else {
-          resetPullDown(this.pullDown);
+          this.resetPullDown();
         }
-        // reset touchPosition
-        touchPosition.distance = 0;
-        touchPosition.start = 0;
       });
-      // remove transition when transitionend
+      // 监控动画恢复高度后去除动画
       pullDownHeader.addEventListener("transitionend", () => {
-        pullDownHeader.style.transition = "";
+        this.withAnimation = false;
       });
       pullDownHeader.addEventListener("webkitTransitionEnd", () => {
-        pullDownHeader.style.transition = "";
+        this.withAnimation = false;
       });
-    });
+    },
+    resetPullDown(withAnimation) {
+      this.withAnimation = !!withAnimation;
+      this.pullDown.height = 0;
+      this.pullDown.status = STATUS_START;
+      // reset touchPosition
+      this.touchPosition.distance = 0;
+      this.touchPosition.start = 0;
+    },
   },
-  watch: {
-    enablePullDown(val) {
-      // 如果是动态的触发了下拉功能则手动初始化，此时由于在执行touchmove因此需要讲canPull改为true
-      if (val) {
-        this.canPullDown = true
-        this.initPullDown()
-      }
-    }
-  },
-  methods: {
-    // initPullDown() {
-    //   if (!this.enablePullDown) return
-    //   const el = this.$el
-    //   // touchstart判断当前容器是否有滚动值，如果有滚动值则不触发touchmove
-    //   el.addEventListener("touchstart", (e) => {
-    //     if (el.scrollTop === 0) {
-    //       this.canPullDown = true;
-    //     } else {
-    //       this.canPullDown = false;
-    //     }
-    //     this.touchPosition.start = e.touches.item(0).pageY;
-    //   });
-
-    //   /**
-    //    * touchmove更新下拉框高度
-    //    * 更新图标动画样式
-    //    * 更新下拉状态
-    //    */
-    //   el.addEventListener("touchmove", (e) => {
-    //     if (!this.canPullDown) {
-    //       return;
-    //     }
-    //     if (this.touchPosition.start === 0) {
-    //       this.touchPosition.start = e.touches.item(0).pageY
-    //     }
-    //     var distance = e.touches.item(0).pageY - this.touchPosition.start;
-    //     // 先限制最大下拉高度为100
-    //     distance = distance > 100 ? 100 : distance;
-    //     // prevent native scroll
-    //     if (distance > 0) {
-    //       el.style.overflow = "hidden";
-    //     }
-    //     // 更新distance和下拉框的高度
-    //     this.touchPosition.distance = distance;
-    //     this.pullDown.height = distance;
-    //     /**
-    //      * if distance is bigger than the height of pull down
-    //      * set the status of pull down to STATUS_READY
-    //      */
-    //     if (distance > this.pullDownHeight) {
-    //       this.pullDown.status = STATUS_READY;
-    //       icon.style.transform = "rotate(180deg)";
-    //     } else {
-    //       /**
-    //        * else set the status of pull down to STATUS_START
-    //        * and rotate the icon based on distance
-    //        */
-    //       this.pullDown.status = STATUS_START;
-    //       icon.style.transform =
-    //         "rotate(" + (distance / this.pullDownHeight) * 180 + "deg)";
-    //     }
-    //   });
-
-    //   // bind touchend event
-    //   el.addEventListener("touchend", () => {
-    //     console.log('touchend', el.scrollTop, this.pullDownHeight);
-    //     this.canPullDown = false;
-    //     el.style.overflowY = "auto";
-    //     pullDownHeader.style.transition = ANIMATION;
-    //     // reset icon rotate
-    //     icon.style.transform = "";
-    //     // if distance is bigger than 60
-    //     if (touchPosition.distance - el.scrollTop > this.pullDownHeight) {
-    //       el.scrollTop = 0;
-    //       this.pullDown.height = this.pullDownHeight;
-    //       this.pullDown.status = STATUS_REFRESH;
-    //       // trigger refresh callback
-    //       if (this.onRefresh && typeof this.onRefresh === "function") {
-    //         var res = this.onRefresh();
-    //         // if onRefresh return promise
-    //         if (res && res.then && typeof res.then === "function") {
-    //           res.then(
-    //             () => {
-    //               // success show finish status
-    //               this.pullDown.status = STATUS_SUCCESS;
-    //               setTimeout(() => {
-    //                 resetPullDown(this.pullDown, true);
-    //               }, 1000);
-    //             },
-    //             (error) => {
-    //               // show error and hide the pull down after 1 second
-    //               if (typeof error !== "string") {
-    //                 error = false;
-    //               }
-    //               this.pullDown.msg = error || this.customLabels[0];
-    //               this.pullDown.status = STATUS_ERROR;
-    //               setTimeout(() => {
-    //                 resetPullDown(this.pullDown, true);
-    //               }, 1000);
-    //             }
-    //           );
-    //         } else {
-    //           resetPullDown(this.pullDown);
-    //         }
-    //       } else {
-    //         resetPullDown(this.pullDown);
-    //         console.warn("please use :on-refresh to pass onRefresh callback");
-    //       }
-    //     } else {
-    //       resetPullDown(this.pullDown);
-    //     }
-    //     // reset touchPosition
-    //     touchPosition.distance = 0;
-    //     touchPosition.start = 0;
-    //   });
-    //   // remove transition when transitionend
-    //   pullDownHeader.addEventListener("transitionend", () => {
-    //     pullDownHeader.style.transition = "";
-    //   });
-    //   pullDownHeader.addEventListener("webkitTransitionEnd", () => {
-    //     pullDownHeader.style.transition = "";
-    //   });
-    // }
-  }
 };
 </script>
 

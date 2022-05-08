@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <vue-load-scroll class="scroll-container" :on-refresh="onRefresh">
+    <vue-load-scroll class="scroll-container" :on-pulldown-refresh="onRefresh">
       <div class="content">
         我是滚动内容
       </div>
