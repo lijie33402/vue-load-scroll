@@ -2,7 +2,7 @@
   <div id="app">
     <vue-load-scroll class="scroll-container" :on-pulldown-refresh="onRefresh">
       <div class="content">
-        我是滚动内容
+        {{content}}
       </div>
     </vue-load-scroll>
     <div class="bottom">我是底部</div>
@@ -16,11 +16,20 @@ Vue.use(VueLoadScroll)
 
 export default {
   name: 'App',
+  data() {
+    return {
+      content: '我是滚动内容'
+    }
+  },
   methods: {
     onRefresh() {
+      const _this = this
       return new Promise(function (resolve) {
         setTimeout(function () {
           resolve();
+          setTimeout(() => {
+            _this.content = '更新滚动内容'
+          }, 1000)
         }, 1000);
       });
     }

@@ -14,6 +14,11 @@
       </div>
     </div>
     <slot></slot>
+    <slot name="bottom">
+      <div class="garen-loadmore-footer" v-if="!enablePullupLoad" @click="onBottomErrorClick">
+        <div>{{bottomText}}</div>
+      </div>
+    </slot>
   </div>
 </template>
 
@@ -34,6 +39,13 @@ const LABELS = [
   "刷新完成",
 ];
 
+const BOTTOMSTATUS = {
+  wait: "wait", // 等待
+  loading: "loading", // 正在加载
+  nodata: "nodata", // 暂无数据
+  error: "error" // 错误
+};
+
 export default {
   name: "vue-load-scroll",
   props: {
@@ -52,6 +64,24 @@ export default {
         return {};
       },
     },
+    // 是否开启上拉底部加载
+    enablePullupLoad: {
+      type: Boolean,
+      default: true,
+    },
+    // 触发上拉无限滚动距离
+    bottomDistance: {
+      type: Number,
+      default: 10
+    },
+    // 容器scroll事件
+    eventScroll: {
+      type: Function
+    },
+    // 上拉触发返回promise的函数
+    onPullupRefresh: {
+      type: Function,
+    },
   },
   data() {
     return {
@@ -67,6 +97,7 @@ export default {
         start: 0,
         distance: 0,
       },
+      bottomStatus: BOTTOMSTATUS.wait
     };
   },
   computed: {
@@ -247,6 +278,37 @@ export default {
       // reset touchPosition
       this.touchPosition.distance = 0;
       this.touchPosition.start = 0;
+    },
+    handleScroll() {
+      // 传进来的容器滚动事件
+      this.eventScroll && this.eventScroll();
+      // 如果禁止下拉加载，或者容器
+      if (!this.enablePullupLoad || window.getComputedStyle(this.$el).overflow !== 'auto') {
+        return;
+      }
+      if (this.bottomStatus !== BOTTOMSTATUS.wait) {
+        return;
+      }
+      let bDistance =
+        this.$el.scrollHeight - this.$el.scrollTop - this.$el.clientHeight;
+      if (bDistance <= this.bottomDistance) {
+        this.bottomStatus = BOTTOMSTATUS.loading;
+        this.$nextTick(() => {
+          try {
+            this.$el.scrollTo(0, this.$el.scrollHeight);
+          } catch (e) {
+            console.log(e);
+          }
+        });
+        this.$emit('bottom-method');
+      }
+    },
+    // 出错时，点击重新加载数据
+    onBottomErrorClick() {
+      if (this.bottomStatus === BOTTOMSTATUS.error) {
+        this.bottomStatus = BOTTOMSTATUS.loading;
+        this.$emit("bottom-error-click");
+      }
     },
   },
 };
