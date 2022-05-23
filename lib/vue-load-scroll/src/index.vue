@@ -1,5 +1,5 @@
 <template>
-  <div class="scroll-container" ref="container">
+  <div @scroll.passive="handleScroll" class="scroll-container" ref="container">
     <div
       ref="pullDownHeader"
       class="pull-down-header"
@@ -15,7 +15,7 @@
     </div>
     <slot></slot>
     <slot name="bottom">
-      <div class="garen-loadmore-footer" v-if="!enablePullupLoad" @click="onBottomErrorClick">
+      <div class="loadmore-footer" v-if="enablePullupLoad" @click="onBottomErrorClick">
         <div>{{bottomText}}</div>
       </div>
     </slot>
@@ -82,6 +82,12 @@ export default {
     onPullupRefresh: {
       type: Function,
     },
+    bottomLoadText: {
+      type: Object,
+      default: () => {
+        return {}
+      }
+    }
   },
   data() {
     return {
@@ -148,6 +154,18 @@ export default {
         bottom: (this.pullDownHeight - 40) / 2 + "px",
       };
     },
+    bottomText() {
+      switch (this.bottomStatus) {
+        case BOTTOMSTATUS.loading:
+          return this.bottomLoadText.loading || "正在加载更多...";
+        case BOTTOMSTATUS.nodata:
+          return this.bottomLoadText.nodata || "暂无更多数据";
+        case BOTTOMSTATUS.error:
+          return this.bottomLoadText.error || "请求数据出错，请点击重试";
+        default:
+          return "";
+      }
+    }
   },
   mounted() {
     this.$nextTick(() => {
@@ -188,7 +206,7 @@ export default {
           this.touchPosition.start = e.touches.item(0).pageY;
         }
         if (!this.canPullDown) return;
-        var distance = e.touches.item(0).pageY - this.touchPosition.start;
+        let distance = e.touches.item(0).pageY - this.touchPosition.start;
         // 先限制最大下拉高度为100
         distance = distance > 100 ? 100 : distance;
         // 更新distance和下拉框的高度
@@ -224,7 +242,7 @@ export default {
             this.onPulldownRefresh &&
             typeof this.onPulldownRefresh === "function"
           ) {
-            var res = this.onPulldownRefresh();
+            const res = this.onPulldownRefresh();
             console.log(res);
             // 判断是否是promise返回
             if (res && res.then && typeof res.then === "function") {
@@ -256,8 +274,6 @@ export default {
               "please use :on-refresh to pass onPulldownRefresh callback"
             );
           }
-        } else {
-          this.resetPullDown();
         }
       });
       // 监控动画恢复高度后去除动画
@@ -278,6 +294,7 @@ export default {
       // reset touchPosition
       this.touchPosition.distance = 0;
       this.touchPosition.start = 0;
+      this.resetPullup()
     },
     handleScroll() {
       // 传进来的容器滚动事件
@@ -293,15 +310,41 @@ export default {
         this.$el.scrollHeight - this.$el.scrollTop - this.$el.clientHeight;
       if (bDistance <= this.bottomDistance) {
         this.bottomStatus = BOTTOMSTATUS.loading;
-        this.$nextTick(() => {
-          try {
-            this.$el.scrollTo(0, this.$el.scrollHeight);
-          } catch (e) {
-            console.log(e);
+        // 如果有传promise函数则执行
+        if (
+          this.onPullupRefresh &&
+          typeof this.onPullupRefresh === "function"
+        ) {
+          const res = this.onPullupRefresh();
+          // 判断是否是promise返回
+          if (res && res.then && typeof res.then === "function") {
+            res.then(
+              (flag) => {
+                // 如果成功更新状态如果flag为true表明没有更多数据了
+                if (flag) {
+                  this.bottomStatus = BOTTOMSTATUS.nodata;
+                } else {
+                  this.bottomStatus = BOTTOMSTATUS.wait;
+                }
+              },
+              () => {
+                // 如果失败更新状态为error
+                this.bottomStatus = BOTTOMSTATUS.error;
+              }
+            );
+          } else {
+            this.resetPullup();
           }
-        });
-        this.$emit('bottom-method');
+        } else {
+          this.resetPullup();
+          console.warn(
+            "please use :on-refresh to pass onPullupRefresh callback"
+          );
+        }
       }
+    },
+    resetPullup() {
+      this.bottomStatus = BOTTOMSTATUS.wait;
     },
     // 出错时，点击重新加载数据
     onBottomErrorClick() {
