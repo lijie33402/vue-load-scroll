@@ -23,23 +23,14 @@
 </template>
 
 <script>
-// status of pull down
-const STATUS_ERROR = -1;
-const STATUS_START = 0;
-const STATUS_READY = 1;
-const STATUS_REFRESH = 2;
-const STATUS_SUCCESS = 3;
-
-// labels of pull down
-const LABELS = [
-  "数据异常",
-  "下拉刷新数据",
-  "松开刷新数据",
-  "数据刷新中...",
-  "刷新完成",
-];
-
-const BOTTOMSTATUS = {
+const PULLDOWN_STATUS = {
+  start: "start", // 等待
+  ready: "ready", // 下拉刷新
+  refresh: "refresh", // 加载中
+  success: "success", // 完成
+  error: "error" // 错误
+};
+const PULLUP_STATUS = {
   wait: "wait", // 等待
   loading: "loading", // 正在加载
   nodata: "nodata", // 暂无数据
@@ -58,11 +49,16 @@ export default {
     onPulldownRefresh: {
       type: Function,
     },
-    config: {
+    // 传入的下拉展示话术配置
+    pullDownText: {
       type: Object,
-      default: function () {
+      default: () => {
         return {};
-      },
+      }
+    },
+    pullDownHeight: {
+      type: Number,
+      default: 60
     },
     // 是否开启上拉底部加载
     enablePullupLoad: {
@@ -82,7 +78,8 @@ export default {
     onPullupRefresh: {
       type: Function,
     },
-    bottomLoadText: {
+    // 传入的上拉显示话术配置
+    pullUpText: {
       type: Object,
       default: () => {
         return {}
@@ -94,57 +91,36 @@ export default {
       pullDown: {
         status: 0,
         height: 0,
-        msg: "",
       },
       canPullDown: false,
-      withAnimation: false, // 下拉框高度恢复到0时候的缓冲动画
+      // 下拉框高度恢复到0时候的缓冲动画
+      withAnimation: false,
       // 记录点击位置，及滑动距离
       touchPosition: {
         start: 0,
         distance: 0,
       },
-      bottomStatus: BOTTOMSTATUS.wait
+      bottomStatus: PULLUP_STATUS.wait
     };
   },
   computed: {
-    pullDownHeight() {
-      return this.config.pullDownHeight || 60;
+    computedPullDownText() {
+      return {
+        start: this.pullDownText.start || "下拉刷新数据", // 等待
+        ready: this.pullDownText.ready || "松开刷新数据", // 下拉刷新
+        refresh: this.pullDownText.refresh || "数据刷新中", // 加载中
+        success: this.pullDownText.success || "刷新完成", // 完成
+        error: this.pullDownText.error || "数据异常" // 错误
+      };
     },
     label() {
-      // label of pull down
-      if (this.pullDown.status === STATUS_ERROR) {
-        return this.pullDown.msg;
-      }
-      return this.customLabels[this.pullDown.status + 1];
-    },
-    customLabels() {
-      const errorLabel =
-        this.config.errorLabel !== undefined
-          ? this.config.errorLabel
-          : LABELS[0];
-      const startLabel =
-        this.config.startLabel !== undefined
-          ? this.config.startLabel
-          : LABELS[1];
-      const readyLaebl =
-        this.config.readyLabel !== undefined
-          ? this.config.readyLabel
-          : LABELS[2];
-      const loadingLabel =
-        this.config.loadingLabel !== undefined
-          ? this.config.loadingLabel
-          : LABELS[3];
-      const successLabel =
-        this.config.successLabel !== undefined
-          ? this.config.successLabel
-          : LABELS[4];
-      return [errorLabel, startLabel, readyLaebl, loadingLabel, successLabel];
+      return this.computedPullDownText[this.pullDown.status];
     },
     iconClass() {
       // icon of pull down
-      if (this.pullDown.status === STATUS_REFRESH) {
+      if (this.pullDown.status === PULLDOWN_STATUS.refresh) {
         return "pull-down-refresh";
-      } else if (this.pullDown.status === STATUS_ERROR) {
+      } else if (this.pullDown.status === PULLDOWN_STATUS.error) {
         return "pull-down-error";
       }
       return "";
@@ -154,17 +130,16 @@ export default {
         bottom: (this.pullDownHeight - 40) / 2 + "px",
       };
     },
+    computedPullUpText() {
+      return {
+        wait: this.pullDownText.wait || "", // 等待
+        loading: this.pullDownText.loading || "正在加载更多...", // 正在加载
+        nodata: this.pullDownText.nodata || "暂无更多数据", // 暂无数据
+        error: this.pullDownText.error || "请求数据出错，请点击重试" // 错误
+      };
+    },
     bottomText() {
-      switch (this.bottomStatus) {
-        case BOTTOMSTATUS.loading:
-          return this.bottomLoadText.loading || "正在加载更多...";
-        case BOTTOMSTATUS.nodata:
-          return this.bottomLoadText.nodata || "暂无更多数据";
-        case BOTTOMSTATUS.error:
-          return this.bottomLoadText.error || "请求数据出错，请点击重试";
-        default:
-          return "";
-      }
+      return this.computedPullUpText[this.bottomStatus] || '';
     }
   },
   mounted() {
@@ -213,18 +188,18 @@ export default {
         this.touchPosition.distance = distance;
         this.pullDown.height = distance;
         /**
-         * 如果下拉高度大于设定的下拉框高度那么更改下拉状态为STATUS_READY
+         * 如果下拉高度大于设定的下拉框高度那么更改下拉状态为PULLDOWN_STATUS
          * 下拉图表旋转180deg
          */
         if (distance > this.pullDownHeight) {
-          this.pullDown.status = STATUS_READY;
+          this.pullDown.status = PULLDOWN_STATUS;
           icon.style.transform = "rotate(180deg)";
         } else {
           /**
-           * 如果还没到下拉框高度就是STATUS_START状态
+           * 如果还没到下拉框高度就是PULLDOWN_STATUS.ready状态
            * 按比例旋转图标
            */
-          this.pullDown.status = STATUS_START;
+          this.pullDown.status = PULLDOWN_STATUS.ready;
           icon.style.transform =
             "rotate(" + (distance / this.pullDownHeight) * 180 + "deg)";
         }
@@ -236,7 +211,7 @@ export default {
         // 如果下拉距离大于下拉框高度下拉框高度确定，状态更新
         if (this.touchPosition.distance > this.pullDownHeight) {
           this.pullDown.height = this.pullDownHeight;
-          this.pullDown.status = STATUS_REFRESH;
+          this.pullDown.status = PULLDOWN_STATUS.refresh;
           // 如果有传promise函数则执行
           if (
             this.onPulldownRefresh &&
@@ -248,17 +223,15 @@ export default {
             if (res && res.then && typeof res.then === "function") {
               res.then(
                 () => {
-                  // 如果成功更新状态为STATUS_SUCCESS
-                  this.pullDown.status = STATUS_SUCCESS;
+                  // 如果成功更新状态为PULLDOWN_STATUS.success
+                  this.pullDown.status = PULLDOWN_STATUS.success;
                   // 延时1s后回复初始状态
                   setTimeout(() => {
                     this.resetPullDown(true);
                   }, 1000);
                 },
                 () => {
-                  // 如果失败更新状态为STATUS_ERROR
-                  this.pullDown.msg = this.customLabels[0];
-                  this.pullDown.status = STATUS_ERROR;
+                  this.pullDown.status = PULLDOWN_STATUS.error;
                   // 延时1s后回复初始状态
                   setTimeout(() => {
                     this.resetPullDown(true);
@@ -290,7 +263,7 @@ export default {
       icon.style.transform = "";
       this.withAnimation = !!withAnimation;
       this.pullDown.height = 0;
-      this.pullDown.status = STATUS_START;
+      this.pullDown.status = PULLDOWN_STATUS.ready;
       // reset touchPosition
       this.touchPosition.distance = 0;
       this.touchPosition.start = 0;
@@ -303,13 +276,13 @@ export default {
       if (!this.enablePullupLoad || window.getComputedStyle(this.$el).overflow !== 'auto') {
         return;
       }
-      if (this.bottomStatus !== BOTTOMSTATUS.wait) {
+      if (this.bottomStatus !== PULLUP_STATUS.wait) {
         return;
       }
       let bDistance =
         this.$el.scrollHeight - this.$el.scrollTop - this.$el.clientHeight;
       if (bDistance <= this.bottomDistance) {
-        this.bottomStatus = BOTTOMSTATUS.loading;
+        this.bottomStatus = PULLUP_STATUS.loading;
         // 如果有传promise函数则执行
         if (
           this.onPullupRefresh &&
@@ -322,14 +295,14 @@ export default {
               (flag) => {
                 // 如果成功更新状态如果flag为true表明没有更多数据了
                 if (flag) {
-                  this.bottomStatus = BOTTOMSTATUS.nodata;
+                  this.bottomStatus = PULLUP_STATUS.nodata;
                 } else {
-                  this.bottomStatus = BOTTOMSTATUS.wait;
+                  this.bottomStatus = PULLUP_STATUS.wait;
                 }
               },
               () => {
                 // 如果失败更新状态为error
-                this.bottomStatus = BOTTOMSTATUS.error;
+                this.bottomStatus = PULLUP_STATUS.error;
               }
             );
           } else {
@@ -344,12 +317,12 @@ export default {
       }
     },
     resetPullup() {
-      this.bottomStatus = BOTTOMSTATUS.wait;
+      this.bottomStatus = PULLUP_STATUS.wait;
     },
     // 出错时，点击重新加载数据
     onBottomErrorClick() {
-      if (this.bottomStatus === BOTTOMSTATUS.error) {
-        this.bottomStatus = BOTTOMSTATUS.loading;
+      if (this.bottomStatus === PULLUP_STATUS.error) {
+        this.bottomStatus = PULLUP_STATUS.loading;
         this.$emit("bottom-error-click");
       }
     },
